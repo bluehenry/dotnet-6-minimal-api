@@ -1,11 +1,28 @@
+using Microsoft.EntityFrameworkCore;
+using Coffee.MinApi;
+
 var builder = WebApplication.CreateBuilder(args);
 
+var connectionString = builder.Configuration.GetConnectionString("Orders") ?? "Data Source=Orders.db";
+
 // Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddSqlite<OrderDbContext>(connectionString);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Default", builder =>
+    {
+        builder.AllowAnyOrigin();
+    });
+});
+
 var app = builder.Build();
+
+await CreateDb(app.Services, app.Logger);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -15,29 +32,55 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors();
 
-var summaries = new[]
+app.MapGet("/orders/{id}", (int id, IOrderService orderService) =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    var order = orderService.GetOrderById(id);
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-       new WeatherForecast
-       (
-           DateTime.Now.AddDays(index),
-           Random.Shared.Next(-20, 55),
-           summaries[Random.Shared.Next(summaries.Length)]
-       ))
-        .ToArray();
-    return forecast;
+    if (order == null)
+    {
+        return Results.NotFound();
+    }
+
+    return Results.Ok(order);
 })
-.WithName("GetWeatherForecast");
+.WithName("Get order by id");
+
+app.MapGet("/orders", (IOrderService orderService) =>
+{
+    return Results.Ok(orderService.GetOrders());
+})
+.WithName("Get orders");
+
+app.MapPost("/orders", (Order newOrder, IOrderService orderService) =>
+{
+    var createdOrder = orderService.AddOrder(newOrder);
+
+    return Results.Created($"/orders/{createdOrder.Id}", createdOrder);
+})
+.WithName("Add order");
+
+app.MapPut("/orders/{id}", (int id, Order updatedOrder, IOrderService orderService) =>
+{
+    orderService.UpdateOrder(id, updatedOrder);
+
+    return Results.NoContent();
+})
+.WithName("Update Order");
+
+app.MapDelete("/orders/{id}", (int id, IOrderService orderService) =>
+{
+    orderService.DeleteOrder(id);
+
+    return Results.Ok();
+})
+.WithName("Delete order");
 
 app.Run();
 
-internal record WeatherForecast(DateTime Date, int TemperatureC, string? Summary)
+async Task CreateDb(IServiceProvider services, ILogger logger)
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    using var db = services.CreateScope().ServiceProvider.GetRequiredService<OrderDbContext>();
+    await db.Database.MigrateAsync();
 }
