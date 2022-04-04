@@ -1,16 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using Coffee.MinApi;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("Orders") ?? "Data Source=Orders.db";
+// var connectionString = builder.Configuration.GetConnectionString("Orders") ?? "Data Source=Orders.db";
+var connectionString = "Data Source=(localdb)\\MSSQLLocalDB; Initial Catalog=CoffeeAppDb";
 
 // Add services to the container.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IOrderService, OrderService>();
-builder.Services.AddSqlite<OrderDbContext>(connectionString);
+builder.Services.AddSqlServer<OrderDbContext>(connectionString);
+//builder.Services.AddSqlite<OrderDbContext>(connectionString);
+
 
 builder.Services.AddCors(options =>
 {
@@ -22,7 +26,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-await CreateDb(app.Services, app.Logger);
+//await CreateDb(app.Services, app.Logger);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -79,8 +83,8 @@ app.MapDelete("/orders/{id}", (int id, IOrderService orderService) =>
 
 app.Run();
 
-async Task CreateDb(IServiceProvider services, ILogger logger)
-{
-    using var db = services.CreateScope().ServiceProvider.GetRequiredService<OrderDbContext>();
-    await db.Database.MigrateAsync();
-}
+//async Task CreateDb(IServiceProvider services, ILogger logger)
+//{
+//    using var db = services.CreateScope().ServiceProvider.GetRequiredService<OrderDbContext>();
+//    await db.Database.MigrateAsync();
+//}
